@@ -6,6 +6,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 interface Regras {
   nomeEmpreendimento: string
   precoTabela: number
+  valorAvaliacao: number
   percentualMaxFinanciamento: number
   intermediariaValor: number
   intermediariaQuantidade: number
@@ -36,14 +37,17 @@ function formatDate(date: Date): string {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function calcularFluxo(laudo: LaudoExtraido, regras: Regras): string {
-  const valorAvaliacao = laudo.valorAvaliacao ?? 0
+function calcularFluxo(laudo: LaudoExtraido, regras: Regras) {
+  const valorAvaliacao = regras.valorAvaliacao > 0 ? regras.valorAvaliacao : (laudo.valorAvaliacao ?? 0)
   const financiamentoAprovado = laudo.financiamentoAprovado ?? 0
 
-  const financiamentoEfetivo = Math.min(
-    financiamentoAprovado,
-    valorAvaliacao * (regras.percentualMaxFinanciamento / 100),
-  )
+  const limiteFinanciamento = valorAvaliacao * (regras.percentualMaxFinanciamento / 100)
+  const financiamentoEfetivo = Math.min(financiamentoAprovado, limiteFinanciamento)
+
+  let avisoLimite: string | null = null
+  if (financiamentoAprovado > limiteFinanciamento) {
+    avisoLimite = `⚠️ Financiamento aprovado (R$ ${formatBRL(financiamentoAprovado)}) excede ${regras.percentualMaxFinanciamento}% da avaliação. Utilizado o limite de R$ ${formatBRL(limiteFinanciamento)}.`
+  }
 
   const saldoDevedor = regras.precoTabela - financiamentoEfetivo
   const totalIntermediarias = regras.intermediariaQuantidade * regras.intermediariaValor
@@ -51,19 +55,20 @@ function calcularFluxo(laudo: LaudoExtraido, regras: Regras): string {
   const parcelaINC = regras.parcelasINC > 0 ? saldoParcelamento / regras.parcelasINC : 0
 
   const primeiraData = new Date(regras.intermediariaPrimeiraData + 'T12:00:00')
-
   const intervalos: Record<'mensal' | 'semestral' | 'anual', number> = {
-    mensal: 1,
-    semestral: 6,
-    anual: 12,
+    mensal: 1, semestral: 6, anual: 12,
   }
   const intervaloMeses = intervalos[regras.intermediariaCadencia]
 
+  const intermediarias: { numero: string; data: string; valor: number }[] = []
   const linhasIntermediarias: string[] = []
+
   for (let i = 0; i < regras.intermediariaQuantidade; i++) {
     const data = addMonths(primeiraData, i * intervaloMeses)
     const num = String(i + 1).padStart(2, '0')
-    linhasIntermediarias.push(`${num} — ${formatDate(data)}:   R$ ${formatBRL(regras.intermediariaValor)}`)
+    const dataStr = formatDate(data)
+    intermediarias.push({ numero: num, data: dataStr, valor: regras.intermediariaValor })
+    linhasIntermediarias.push(`${num} — ${dataStr}:   R$ ${formatBRL(regras.intermediariaValor)}`)
   }
 
   const nomeCliente = laudo.nomeCliente ?? 'Não identificado'
@@ -78,6 +83,11 @@ function calcularFluxo(laudo: LaudoExtraido, regras: Regras): string {
     `Financiamento Caixa:        R$ ${formatBRL(financiamentoEfetivo)}`,
     `Saldo Devedor (Pró-Soluto): R$ ${formatBRL(saldoDevedor)}`,
     '',
+  ]
+
+  if (avisoLimite) linhas.push(avisoLimite, '')
+
+  linhas.push(
     'INTERMEDIÁRIAS',
     ...linhasIntermediarias,
     '',
@@ -87,9 +97,26 @@ function calcularFluxo(laudo: LaudoExtraido, regras: Regras): string {
     '',
     '────────────────────────────',
     `Total Pró-Soluto:   R$ ${formatBRL(saldoDevedor)}`,
-  ]
+  )
 
-  return linhas.join('\n')
+  const dadosPdf = {
+    nomeEmpreendimento: regras.nomeEmpreendimento,
+    nomeCliente,
+    dataGeracao: new Date().toLocaleDateString('pt-BR'),
+    precoTabela: regras.precoTabela,
+    valorAvaliacao,
+    limiteFinanciamento,
+    financiamentoEfetivo,
+    saldoDevedor,
+    avisoLimite,
+    intermediarias,
+    totalIntermediarias,
+    parcelasINC: regras.parcelasINC,
+    parcelaINC,
+    saldoParcelamento,
+  }
+
+  return { texto: linhas.join('\n'), dadosPdf }
 }
 
 export async function POST(req: NextRequest) {
@@ -137,9 +164,9 @@ export async function POST(req: NextRequest) {
     const jsonMatch = rawText.match(/\{[\s\S]*\}/)
     const laudo: LaudoExtraido = jsonMatch ? JSON.parse(jsonMatch[0]) : {}
 
-    const fluxo = calcularFluxo(laudo, regras)
+    const { texto, dadosPdf } = calcularFluxo(laudo, regras)
 
-    return NextResponse.json({ fluxo, laudo })
+    return NextResponse.json({ fluxo: texto, laudo, dadosPdf })
   } catch (err) {
     console.error(err)
     return NextResponse.json({ error: 'Erro ao gerar fluxo' }, { status: 500 })

@@ -9,9 +9,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'inc-blue': '#1e3a5f',
-        'inc-blue-light': '#2a5298',
-        'inc-blue-hover': '#162d4a',
+        inc: {
+          primary: '#F04E23',
+          hover: '#D94019',
+          light: '#FFF4F1',
+          text: '#1A1A1A',
+          gray: '#F5F5F5',
+        },
       },
     },
   },

@@ -35,7 +35,6 @@ export default function LaudoSection({
     const reader = new FileReader()
     reader.onload = (e) => {
       const result = e.target?.result as string
-      // strip data URL prefix → pure base64
       setLaudoImagem(result.split(',')[1])
     }
     reader.readAsDataURL(file)
@@ -50,17 +49,17 @@ export default function LaudoSection({
 
   return (
     <section className="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
-      <h2 className="text-base font-semibold text-[#1e3a5f] mb-3">Laudo de Aprovação</h2>
+      <h2 className="text-base font-semibold text-inc-text mb-3">Laudo de Aprovação</h2>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-0 mb-4 border-b border-gray-200">
         {(['texto', 'imagem'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setAba(tab)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
               aba === tab
-                ? 'bg-[#1e3a5f] text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'border-inc-primary text-inc-primary'
+                : 'border-transparent text-gray-500 hover:text-inc-text'
             }`}
           >
             {tab === 'texto' ? 'Colar Texto' : 'Enviar Imagem'}
@@ -74,7 +73,7 @@ export default function LaudoSection({
           onChange={(e) => setLaudoTexto(e.target.value)}
           placeholder="Cole aqui o laudo da Caixa ou mensagem do corretor..."
           rows={8}
-          className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-transparent"
+          className="w-full border border-gray-300 rounded-lg p-3 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-inc-primary focus:border-transparent"
         />
       ) : (
         <div
@@ -83,7 +82,7 @@ export default function LaudoSection({
           onDrop={onDrop}
           onClick={() => inputRef.current?.click()}
           className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
-            dragging ? 'border-[#1e3a5f] bg-blue-50' : 'border-gray-300 hover:border-[#2a5298]'
+            dragging ? 'border-inc-primary bg-inc-light' : 'border-gray-300 hover:border-inc-primary'
           }`}
         >
           <input

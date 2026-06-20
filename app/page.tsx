@@ -9,6 +9,7 @@ import ResultadoSection from '@/components/ResultadoSection'
 const REGRAS_DEFAULTS: Regras = {
   nomeEmpreendimento: '',
   precoTabela: 0,
+  valorAvaliacao: 0,
   percentualMaxFinanciamento: 80,
   intermediariaValor: 0,
   intermediariaQuantidade: 0,
@@ -23,6 +24,8 @@ export default function Home() {
   const [mimeType, setMimeType] = useState<string | null>(null)
   const [regras, setRegras] = useState<Regras>(REGRAS_DEFAULTS)
   const [fluxo, setFluxo] = useState<string | null>(null)
+  const [dadosPdf, setDadosPdf] = useState<object | null>(null)
+  const [nomeCliente, setNomeCliente] = useState('')
   const [loading, setLoading] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -49,6 +52,8 @@ export default function Home() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erro desconhecido')
       setFluxo(data.fluxo)
+      setDadosPdf(data.dadosPdf)
+      setNomeCliente(data.laudo?.nomeCliente ?? '')
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao gerar fluxo')
     } finally {
@@ -57,7 +62,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-inc-gray">
       <Header />
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
@@ -76,7 +81,7 @@ export default function Home() {
           <button
             onClick={gerarFluxo}
             disabled={!temLaudo || loading}
-            className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold text-base py-3 rounded-xl transition-colors shadow-sm"
+            className="w-full bg-inc-primary hover:bg-inc-hover disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold text-base py-3 rounded-xl transition-colors shadow-sm"
           >
             {loading ? 'Gerando fluxo...' : 'Gerar Fluxo'}
           </button>
@@ -92,7 +97,14 @@ export default function Home() {
           )}
         </div>
 
-        {fluxo && <ResultadoSection fluxo={fluxo} />}
+        {fluxo && dadosPdf && (
+          <ResultadoSection
+            fluxo={fluxo}
+            dadosFluxo={dadosPdf}
+            nomeEmpreendimento={regras.nomeEmpreendimento}
+            nomeCliente={nomeCliente}
+          />
+        )}
       </main>
     </div>
   )
