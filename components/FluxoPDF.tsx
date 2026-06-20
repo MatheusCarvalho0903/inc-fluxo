@@ -1,16 +1,11 @@
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  StyleSheet,
-  Image,
-} from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 
 const ORANGE = '#F04E23'
 const ORANGE_LIGHT = '#FFF4F1'
+const BLUE = '#2563EB'
+const BLACK = '#1A1A1A'
 const TEXT = '#1A1A1A'
-const DIVIDER = '#F9B09A' // #F04E23 ~30% opacity on white
+const DIVIDER = '#F9B09A'
 
 export interface FluxoPDFData {
   nomeEmpreendimento: string
@@ -21,6 +16,7 @@ export interface FluxoPDFData {
   limiteFinanciamento: number
   financiamentoEfetivo: number
   saldoDevedor: number
+  porcentagemProSoluto: number
   avisoLimite: string | null
   intermediarias: { numero: string; data: string; valor: number }[]
   totalIntermediarias: number
@@ -31,6 +27,10 @@ export interface FluxoPDFData {
 
 function formatBRL(v: number) {
   return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatPct(v: number) {
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%'
 }
 
 const s = StyleSheet.create({
@@ -47,23 +47,56 @@ const s = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   label: { color: '#555' },
   value: { fontFamily: 'Helvetica-Bold' },
-  tableHeader: { flexDirection: 'row', backgroundColor: ORANGE, color: '#FFF', padding: '4 6', marginBottom: 2, borderRadius: 2 },
+  tableHeader: { flexDirection: 'row', backgroundColor: ORANGE, padding: '4 6', marginBottom: 2, borderRadius: 2 },
   tableHeaderCell: { color: '#FFF', fontFamily: 'Helvetica-Bold', fontSize: 8 },
   tableRow: { flexDirection: 'row', padding: '3 6', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   tableCell: { fontSize: 8 },
   colNum: { width: '10%' },
   colData: { width: '45%' },
   colValor: { width: '45%', textAlign: 'right' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: ORANGE_LIGHT, padding: '8 10', borderRadius: 4, marginTop: 8 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: ORANGE_LIGHT, padding: '8 10', borderRadius: 4, marginTop: 8 },
   totalLabel: { fontFamily: 'Helvetica-Bold', color: ORANGE, fontSize: 10 },
   totalValue: { fontFamily: 'Helvetica-Bold', color: ORANGE, fontSize: 10 },
+  totalPct: { fontFamily: 'Helvetica-Bold', color: ORANGE, fontSize: 9 },
   avisoBox: { backgroundColor: '#FFF3CD', borderLeftWidth: 3, borderLeftColor: '#F0A500', padding: '6 10', marginTop: 6, borderRadius: 2 },
   avisoText: { color: '#7A5000', fontSize: 8 },
+  // Gráfico
+  chartContainer: { alignItems: 'center', marginVertical: 10 },
+  barWrapper: { width: 300, height: 24, flexDirection: 'row', borderRadius: 4, overflow: 'hidden' },
+  legendContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 10, gap: 8 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 12, marginBottom: 4 },
+  legendDot: { width: 9, height: 9, borderRadius: 2, marginRight: 4 },
+  legendText: { fontSize: 8, color: TEXT },
+  legendValue: { fontFamily: 'Helvetica-Bold', fontSize: 8, marginLeft: 4 },
+  legendPct: { color: ORANGE, fontSize: 8, marginLeft: 3 },
+  chartTotal: { fontSize: 8, color: '#555', marginTop: 6, textAlign: 'center' },
+  // Linha pró-soluto com porcentagem
+  proSolutoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  proSolutoRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  proSolutoPct: { color: ORANGE, fontFamily: 'Helvetica-Bold', fontSize: 9, marginLeft: 6 },
   footer: { borderTopWidth: 1.5, borderTopColor: ORANGE, padding: '10 28', marginTop: 'auto' },
   footerText: { color: '#999', fontSize: 7, textAlign: 'center', marginBottom: 2 },
 })
 
 export default function FluxoPDF({ data }: { data: FluxoPDFData }) {
+  const { precoTabela, financiamentoEfetivo, totalIntermediarias, saldoParcelamento } = data
+
+  // Proporções para o gráfico de barra (largura 300px)
+  const barWidth = 300
+  const wFinanc = precoTabela > 0 ? (financiamentoEfetivo / precoTabela) * barWidth : 0
+  const wInterm = precoTabela > 0 ? (totalIntermediarias / precoTabela) * barWidth : 0
+  const wParcel = barWidth - wFinanc - wInterm
+
+  const pctFinanc = precoTabela > 0 ? (financiamentoEfetivo / precoTabela) * 100 : 0
+  const pctInterm = precoTabela > 0 ? (totalIntermediarias / precoTabela) * 100 : 0
+  const pctParcel = precoTabela > 0 ? (saldoParcelamento / precoTabela) * 100 : 0
+
+  const legendItems = [
+    { cor: BLUE, label: 'Financiamento Caixa', valor: financiamentoEfetivo, pct: pctFinanc },
+    { cor: ORANGE, label: 'Intermediárias', valor: totalIntermediarias, pct: pctInterm },
+    { cor: BLACK, label: 'Parcelamento INC', valor: saldoParcelamento, pct: pctParcel },
+  ]
+
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -101,18 +134,28 @@ export default function FluxoPDF({ data }: { data: FluxoPDFData }) {
 
           {/* Resumo Financeiro */}
           <Text style={s.sectionTitle}>Resumo Financeiro</Text>
+
           {[
             ['Valor de Tabela', data.precoTabela],
             ['Valor de Avaliação', data.valorAvaliacao],
             [`Limite Financiamento (${Math.round((data.limiteFinanciamento / data.valorAvaliacao) * 100) || 80}%)`, data.limiteFinanciamento],
             ['Financiamento Efetivo Caixa', data.financiamentoEfetivo],
-            ['Saldo Devedor (Pró-Soluto)', data.saldoDevedor],
           ].map(([label, val]) => (
             <View key={label as string} style={s.row}>
               <Text style={s.label}>{label as string}</Text>
               <Text style={s.value}>R$ {formatBRL(val as number)}</Text>
             </View>
           ))}
+
+          {/* Linha Saldo Devedor com porcentagem em laranja */}
+          <View style={s.proSolutoRow}>
+            <Text style={s.label}>Saldo Devedor (Pró-Soluto)</Text>
+            <View style={s.proSolutoRight}>
+              <Text style={s.value}>R$ {formatBRL(data.saldoDevedor)}</Text>
+              <Text style={s.proSolutoPct}>{formatPct(data.porcentagemProSoluto)}</Text>
+            </View>
+          </View>
+
           {data.avisoLimite && (
             <View style={s.avisoBox}>
               <Text style={s.avisoText}>{data.avisoLimite}</Text>
@@ -155,10 +198,44 @@ export default function FluxoPDF({ data }: { data: FluxoPDFData }) {
 
           <View style={s.divider} />
 
-          {/* Total */}
+          {/* Total Pró-Soluto com porcentagem */}
           <View style={s.totalRow}>
             <Text style={s.totalLabel}>TOTAL PRÓ-SOLUTO</Text>
-            <Text style={s.totalValue}>R$ {formatBRL(data.saldoDevedor)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={s.totalValue}>R$ {formatBRL(data.saldoDevedor)}</Text>
+              <Text style={s.totalPct}>({formatPct(data.porcentagemProSoluto)})</Text>
+            </View>
+          </View>
+
+          <View style={s.divider} />
+
+          {/* Gráfico de Composição */}
+          <Text style={s.sectionTitle}>Composição do Pagamento</Text>
+          <View style={s.chartContainer}>
+            {/* Barra segmentada horizontal */}
+            <View style={s.barWrapper}>
+              <View style={{ width: wFinanc, height: 24, backgroundColor: BLUE }} />
+              <View style={{ width: 2, height: 24, backgroundColor: '#FFF' }} />
+              <View style={{ width: wInterm, height: 24, backgroundColor: ORANGE }} />
+              <View style={{ width: 2, height: 24, backgroundColor: '#FFF' }} />
+              <View style={{ width: wParcel > 0 ? wParcel - 2 : 0, height: 24, backgroundColor: BLACK }} />
+            </View>
+
+            {/* Legenda */}
+            <View style={s.legendContainer}>
+              {legendItems.map((item) => (
+                <View key={item.label} style={s.legendItem}>
+                  <View style={[s.legendDot, { backgroundColor: item.cor }]} />
+                  <Text style={s.legendText}>{item.label}</Text>
+                  <Text style={s.legendValue}>R$ {formatBRL(item.valor)}</Text>
+                  <Text style={s.legendPct}>{formatPct(item.pct)}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={s.chartTotal}>
+              Total: R$ {formatBRL(financiamentoEfetivo + totalIntermediarias + saldoParcelamento)}
+            </Text>
           </View>
         </View>
 

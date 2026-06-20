@@ -53,6 +53,7 @@ function calcularFluxo(laudo: LaudoExtraido, regras: Regras) {
   const totalIntermediarias = regras.intermediariaQuantidade * regras.intermediariaValor
   const saldoParcelamento = saldoDevedor - totalIntermediarias
   const parcelaINC = regras.parcelasINC > 0 ? saldoParcelamento / regras.parcelasINC : 0
+  const porcentagemProSoluto = regras.precoTabela > 0 ? (saldoDevedor / regras.precoTabela) * 100 : 0
 
   const primeiraData = new Date(regras.intermediariaPrimeiraData + 'T12:00:00')
   const intervalos: Record<'mensal' | 'semestral' | 'anual', number> = {
@@ -81,7 +82,7 @@ function calcularFluxo(laudo: LaudoExtraido, regras: Regras) {
     `Valor de Tabela:            R$ ${formatBRL(regras.precoTabela)}`,
     `Valor de Avaliação:         R$ ${formatBRL(valorAvaliacao)}`,
     `Financiamento Caixa:        R$ ${formatBRL(financiamentoEfetivo)}`,
-    `Saldo Devedor (Pró-Soluto): R$ ${formatBRL(saldoDevedor)}`,
+    `Saldo Devedor (Pró-Soluto): R$ ${formatBRL(saldoDevedor)}  (${porcentagemProSoluto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% do valor de tabela)`,
     '',
   ]
 
@@ -96,7 +97,7 @@ function calcularFluxo(laudo: LaudoExtraido, regras: Regras) {
     `(Saldo parcelado: R$ ${formatBRL(saldoParcelamento)})`,
     '',
     '────────────────────────────',
-    `Total Pró-Soluto:   R$ ${formatBRL(saldoDevedor)}`,
+    `Total Pró-Soluto:   R$ ${formatBRL(saldoDevedor)}  (${porcentagemProSoluto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%)`,
   )
 
   const dadosPdf = {
@@ -108,6 +109,7 @@ function calcularFluxo(laudo: LaudoExtraido, regras: Regras) {
     limiteFinanciamento,
     financiamentoEfetivo,
     saldoDevedor,
+    porcentagemProSoluto,
     avisoLimite,
     intermediarias,
     totalIntermediarias,
